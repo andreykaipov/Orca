@@ -38,17 +38,18 @@ function Acels (client) {
 
   this.convert = (event) => {
     const accelerator = event.key === ' ' ? 'Space' : event.key.substr(0, 1).toUpperCase() + event.key.substr(1)
+
     if ((event.ctrlKey || event.metaKey) && event.shiftKey) {
       return `CmdOrCtrl+Shift+${accelerator}`
     }
     if (event.shiftKey && event.altKey) {
-      return `Shift+Alt+${accelerator}`
+      return `Shift+Alt+${event.code.replace(/Digit|Key/, '')}`
     }
     if (event.shiftKey /*&& event.key.toUpperCase() !== event.key*/) {
       return `Shift+${accelerator}`
     }
     if (event.altKey /*&& event.key.length !== 1*/) {
-      return `Alt+${accelerator}`
+      return `Alt+${event.code.replace(/Digit|Key/, '')}`
     }
     if (event.ctrlKey || event.metaKey) {
       return `CmdOrCtrl+${accelerator}`
