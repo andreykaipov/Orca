@@ -438,6 +438,13 @@ function Vi (client) {
       document.removeEventListener('paste', write)
       client.cursor.skipPaste = false
     })
+
+    client.acels.set('Vi', 'Delete word', 'CmdOrCtrl+W', () => {
+      const indicator = client.commander.query[0]
+      const text = client.commander.query.slice(1)
+      const lastWordRemoved = text.split(' ').filter(x => x).slice(0, -1).join(' ')
+      client.commander.query = indicator + (lastWordRemoved ? lastWordRemoved + ' ' : '')
+    })
   }
 
   this.commandMode = () => {
