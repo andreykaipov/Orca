@@ -4,7 +4,26 @@
 /* global MouseEvent */
 
 function Source (client) {
-  this.cache = {}
+  const builtinConstructs = {
+    osc: `
+      25O......
+      ..00O0a0a
+      ...Z0A...
+      ...1F0...
+      .....i4..
+      .....0...
+    `,
+    orand: `
+      xV..13X......
+      yV..32X......
+      ....5Kx...y..
+      .......a1a...
+      ........A....
+      .......A0A...
+      .....1L0.0L2.
+      ....1F0...0F2
+    `
+  }
 
   this.install = () => {
   }
@@ -15,7 +34,12 @@ function Source (client) {
 
   this.new = () => {
     console.log('Source', 'New file..')
+
     this.cache = {}
+
+    for (const [k, v] of Object.entries(builtinConstructs)) {
+      this.cache[k] = v.split('\n').map(x => x.trim()).join('\n').trim()
+    }
   }
 
   this.open = (ext, callback, store = false) => {
@@ -46,7 +70,8 @@ function Source (client) {
 
   this.store = (file, content) => {
     console.info('Source', 'Stored ' + file.name)
-    this.cache[file.name] = content
+    const key = file.name.replace(/.orca$/, '')
+    this.cache[key] = content
   }
 
   this.save = (name, content, type = 'text/plain', callback) => {

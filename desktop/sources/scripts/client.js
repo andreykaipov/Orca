@@ -463,7 +463,7 @@ function Client (body) {
       if (file.name.indexOf('.orca') < 0) { continue }
       this.toggleGuide(false)
       this.source.read(file, null, true)
-      this.commander.start('inject:' + file.name.replace('.orca', ''))
+      this.commander.start(':inject ' + file.name.replace(/.orca$/, ''))
     }
   })
 

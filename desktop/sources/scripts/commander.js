@@ -63,13 +63,11 @@ function Commander (client) {
       if (p.parts[1]) { client.theme.set('b_med', p.parts[1]) }
       if (p.parts[2]) { client.theme.set('b_high', p.parts[2]) }
     },
-    colo: (p) => this.actives['color'](p),
     // Edit
-    '/': (p) => { client.cursor.find(p.str) },
     find: (p) => { client.cursor.find(p.str) },
     select: (p) => { client.cursor.select(p.x, p.y, p.w || 0, p.h || 0) },
     inject: (p, origin) => {
-      const block = client.source.cache[p._str + '.orca']
+      const block = client.source.cache[p._str]
       if (!block) { console.warn('Commander', 'Unknown block: ' + p._str); return }
       client.orca.writeBlock(origin ? origin.x : client.cursor.x, origin ? origin.y : client.cursor.y, block)
       client.cursor.scaleTo(0, 0)
@@ -77,7 +75,11 @@ function Commander (client) {
     },
     write: (p) => {
       client.orca.writeBlock(p._x || client.cursor.x, p._y || client.cursor.y, p._str)
-    }
+    },
+    // Aliases
+    '/': p => this.actives['find'](p),
+    colo: p => this.actives['color'](p),
+    include: (p, origin) => this.actives['inject'](p, origin),
   }
 
   // Make shorthands
