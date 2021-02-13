@@ -39,7 +39,7 @@ function Vi (client) {
                         'W', 'E', 'B', 'G', 'Shift+G',
                         'P', 'R',
                         'U', 'Ctrl+R',
-                        'CmdOrCtrl+V', 'Shift+V',
+                        'CmdOrCtrl+V', 'Shift+V', 'V',
                         'Shift+:', '/',
                         '1', '2', '3', '4', '5', '6', '7', '8', '9',
       /* insert mode */ 'Space', 'Delete', 'Enter',
@@ -142,7 +142,9 @@ function Vi (client) {
     // into visual modes; normal visual mode doesn't make sense because Orca selections can't wrap lines
     client.acels.set('Vi', 'Visual Block', 'CmdOrCtrl+V',  () => { this.switchTo("VISUAL BLOCK") })
     client.acels.set('Vi', 'Visual Line',  'Shift+V', () => { this.switchTo("VISUAL LINE") })
-    client.acels.set('Vi', 'Visual Chord',  'V', () => { this.chordPrefix = 'v' })
+    client.acels.set('Vi', 'Visual Chord', 'V', () => {
+      if (this.chordPrefix === 'v') { this.switchTo("VISUAL LINE") } else { this.chordPrefix = 'v' }
+    })
 
     // command and find modes
     client.acels.set('Vi', 'Command', 'Shift+:', () => { this.switchTo("COMMAND") })
@@ -186,10 +188,54 @@ function Vi (client) {
     })
 
     // simple movements
-    client.acels.set('Vi', 'Move West', 'H', () => { client.cursor.move(-1*(this.chordPrefix||1), 0); this.resetChord() })
-    client.acels.set('Vi', 'Move South', 'J', () => { client.cursor.move(0, -1*(this.chordPrefix||1)); this.resetChord() })
-    client.acels.set('Vi', 'Move North', 'K', () => { client.cursor.move(0, 1*(this.chordPrefix||1)); this.resetChord() })
-    client.acels.set('Vi', 'Move East', 'L', () => { client.cursor.move(1*(this.chordPrefix||1), 0); this.resetChord() })
+    client.acels.set('Vi', 'Move West', 'H', () => {
+      let f = client.cursor.move
+      let multiplicity = this.chordPrefix || 1
+
+      if (this.chordPrefix.startsWith('v')) {
+        multiplicity = this.chordPrefix.substring(1) || 1
+        f = client.cursor.scale
+        this.switchTo("VISUAL BLOCK")
+      }
+
+      f(-1*multiplicity, 0); this.resetChord()
+    })
+    client.acels.set('Vi', 'Move South', 'J', () => {
+      let f = client.cursor.move
+      let multiplicity = this.chordPrefix || 1
+
+      if (this.chordPrefix.startsWith('v')) {
+        multiplicity = this.chordPrefix.substring(1) || 1
+        f = client.cursor.scale
+        this.switchTo("VISUAL BLOCK")
+      }
+
+      f(0, -1*multiplicity); this.resetChord()
+    })
+    client.acels.set('Vi', 'Move North', 'K', () => {
+      let f = client.cursor.move
+      let multiplicity = this.chordPrefix || 1
+
+      if (this.chordPrefix.startsWith('v')) {
+        multiplicity = this.chordPrefix.substring(1) || 1
+        f = client.cursor.scale
+        this.switchTo("VISUAL BLOCK")
+      }
+
+      f(0, 1*multiplicity); this.resetChord()
+    })
+    client.acels.set('Vi', 'Move East', 'L', () => {
+      let f = client.cursor.move
+      let multiplicity = this.chordPrefix || 1
+
+      if (this.chordPrefix.startsWith('v')) {
+        multiplicity = this.chordPrefix.substring(1) || 1
+        f = client.cursor.scale
+        this.switchTo("VISUAL BLOCK")
+      }
+
+      f(1*multiplicity, 0); this.resetChord()
+    })
 
     // just some extra stuff
     client.acels.set('Vi', 'Move West(Leap)', 'Alt+H', () => { client.cursor.move(-client.grid.w, 0) })
@@ -351,11 +397,7 @@ function Vi (client) {
 
     // misc
     ;[1,2,3,4,5,6,7,8,9].forEach(n => {
-      client.acels.set('Vi', `${n}`, n, () => {
-        if (!isNaN(this.chordPrefix)) { // isNaN('') is false because JavaScript <3
-          this.chordPrefix += `${n}`
-        }
-      })
+      client.acels.set('Vi', `${n}`, n, () => this.chordPrefix += `${n}`)
     })
 
     client.acels.set('Vi', 'Play/Pause', 'Space', () => client.clock.togglePlay(false))
@@ -592,11 +634,7 @@ function Vi (client) {
     })
 
     ;[1,2,3,4,5,6,7,8,9].forEach(n => {
-      client.acels.set('Vi', `${n}`, n, () => {
-        if (!isNaN(this.chordPrefix)) { // isNaN('') is false because JavaScript <3
-          this.chordPrefix += `${n}`
-        }
-      })
+      client.acels.set('Vi', `${n}`, n, () => this.chordPrefix += `${n}`)
     })
 
     const handleReplaceKey = (key) => {
