@@ -10,6 +10,7 @@
 function Vi (client) {
   this.mode = null
   this.chordPrefix = ''
+  this.commandCompletionMatches = []
   this.originalCommanderKeyDownHandler = client.commander.onKeyDown
   this.originalCommanderKeyUpHandler = client.commander.onKeyUp
 
@@ -29,6 +30,7 @@ function Vi (client) {
     }
   }
 
+  this.resetCommandCompletionMatches = () => this.commandCompletionMatches = []
   this.resetChord = () => this.chordPrefix = ''
   this.resetAcels = () => {
     client.acels.unset(
@@ -53,6 +55,7 @@ function Vi (client) {
     // I've got butter fingers, or they aren't necessary because we define
     // the bindings' actions within a mode ourselves.
     // Easily reverted by a client.install()
+    client.acels.set('', '', 'Tab', () => {})
     client.acels.set('', '', 'Space', () => {})
     client.acels.set('', '', 'Backspace', () => {})
     client.acels.set('', '', 'CmdOrCtrl+I', () => {})
@@ -83,8 +86,9 @@ function Vi (client) {
   }
 
   this.switchTo = (mode) => {
-    this.resetAcels()
+    this.resetCommandCompletionMatches()
     this.resetChord()
+    this.resetAcels()
     client.cursor.reset()
 
     switch (mode) {
@@ -423,7 +427,7 @@ function Vi (client) {
     client.acels.set('', '', 'ArrowLeft', () => {})
 
     client.acels.set('Vi', '', 'Space', () => client.commander.query += ' ')
-    client.acels.set('Vi', '', 'Backspace', () => { if (client.commander.query !== '/') client.commander.erase() })
+    client.acels.set('Vi', '', 'Backspace', () => { if (![':', '/'].includes(client.commander.query)) client.commander.erase() })
     client.acels.set('Vi', '', 'Escape', () => { client.commander.stop(); this.switchTo("NORMAL") })
 
     client.acels.set('Vi', 'Paste', 'CmdOrCtrl+V', () => {
@@ -456,6 +460,34 @@ function Vi (client) {
     client.acels.set('Vi', 'Run', 'Enter', () => {
       client.commander.run()
       this.switchTo("NORMAL")
+    })
+
+    client.acels.set('Vi', 'Autocomplete', 'Tab', () => {
+      let text = client.commander.query.slice(1)
+      let matches = []
+      let before = ':'
+
+      let [cmd, arg] = text.split(' ')
+
+      if (['inject'].includes(cmd)) {
+        matches = Object.keys(client.source.cache).sort().filter(x => x.match(`^${arg}`))
+        before = `:${cmd} `
+      } else {
+        matches = Object.keys(client.commander.actives).sort().filter(x => x.match(`^${cmd}`))
+      }
+
+      this.commandCompletionMatches = []
+      if (matches.length == 0) { return }
+      if (matches.length == 1) { client.commander.query = before + matches[0]; return }
+      if (matches.length >= 2 ) {
+        this.commandCompletionMatches = matches
+
+        // find largest common prefix; matches already sorted
+        const first = matches[0]
+        const last = matches[matches.length-1]
+        let i = 0; while (i < first.length && first[i] == last[i]) i++
+        client.commander.query = before + first.substring(0, i)
+      }
     })
   }
 
