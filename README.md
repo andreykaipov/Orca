@@ -14,6 +14,7 @@ Please see their repo for Orca documentation.
   + [movements](#movements)
   + [deletions](#deletions)
   + [replacements](#replacements)
+  + [history](#history)
   + [mode switches](#mode-switches)
 * [visual modes](#visual-modes)
   + [scaling](#scaling)
@@ -23,6 +24,7 @@ Please see their repo for Orca documentation.
 * [insert mode](#insert-mode)
 * [replace mode](#replace-mode)
 * [command mode](#command-mode)
+  + [inject](#inject)
 * [find mode](#find-mode)
 
 
@@ -81,10 +83,15 @@ Key | Action
 
 Key | Action
 ----| ------
-`r?` | Replaces the character under the cursor with an `?`
+`r␣` | Replaces the character under the cursor with `␣`
 `~` | Switches casing of current letter
 `p` | Paste
 `4p` | Pastes our clipboard four times
+
+### history
+
+Key | Action
+----| ------
 `u` | Undo
 `C-r` | Redo
 
@@ -100,20 +107,24 @@ Key | Action
 `O` | Insert mode on the line above the current word beginning; otherwise directly above
 `R` | Replace mode
 `C-v` | Visual block mode
-`vgg` | Visual block mode, with a selection up to the top of the page
-`vG` | Visual block mode, with a selection to the bottom of the page
-`v0` | Visual block mode, with a selection to the start of the line
-`v$` | Visual block mode, with a selection to the end of the line
+`v␣` | Visual block mode beginning; replace `␣` with any visual action *
+`vv` | Visual line mode
 `V` | Visual line mode
 `:` | Command mode
 `/` | Find mode
 
+**\*** All of the below visual [scaling](#scaling) actions can be prefaced
+with `v` to quickly jump into visual block mode. For example, `vgg` is
+equivalent to `C-v` followed by `gg`.
 
 ## visual modes
 
-We have a choice of visual line and visual block selection. The former is
+We have the choice of visual line and visual block selection. The former is
 really just a convenience. For example, we can easily mimic line selection
-through `0v$`, saving two strokes over `V`.
+through `0v$`, saving two strokes over `V`, or `vv`.
+
+Note there is no plain visual mode as with Vi, since line-wrapping selections
+wouldn't really play well within an Orca window.
 
 ### scaling
 
@@ -128,10 +139,16 @@ Key | Action
 `G` | Scales our selection to the bottom of the page
 `0` | Scales our selection to the start of the line
 `$` | Scales our selection to the end of the line
+`w` | Scales our selection forward to a word beginning *
+`e` | Scales our selection forward to a word ending *
+`b` | Scales our selection backward to a word beginning *
 `M-h` | Scales our selection one grid square unit left
 `M-j` | Scales our selection one grid square unit down
 `M-k` | Scales our selection one grid square unit up
 `M-l` | Scales our selection one grid square unit right
+
+**\*** Should one scale their selection past the first or last word on a line
+while in visual block mode, visual line selection will occur.
 
 ### dragging
 
@@ -151,10 +168,10 @@ Key | Action
 
 Key | Action
 ----| ------
+`r␣` | Replaces selection with whatever takes the place of `␣`
+`~` | Switches casing of selection
 `y` | Copies selection to our clipboard
 `x` | Cuts selection to our clipboard
-`r?` | Replaces selection with `?` characters
-`~` | Switches casing of selection
 
 ### mode switches
 
@@ -188,17 +205,26 @@ separator instead. For example, `:bpm 80` or `:color ;;ff0`.
 
 Key | Action
 ----| ------
+`Tab` | Completion suggestions for current command
 `Ctrl+U` | Clear current command
+`Ctrl+W` | Delete word
 `Ctrl+P` | Traverse history backwards
 `Ctrl+N` | Traverse history forwards
 `ArrowUp` | Traverse history backwards
 `ArrowDown` | Traverse history forwards
 
+### inject
+
+This fork also bundles some handy templates for use with the `inject` command:
+
+- `osc` - oscillating clock with custom range specification for each period
+- `orand` - an OR and AND gate
+
 
 ## find mode
 
-We can use the above bindings from [command mode](#command-mode) to traverse
-our search history. In addition, we've also got the following:
+We can use the same above bindings from [command mode](#command-mode) mode to
+traverse our search history. In addition, we've also got the following:
 
 Key | Action
 ----| ------
