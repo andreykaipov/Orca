@@ -710,7 +710,9 @@ function Vi (client) {
         }
         client.cursor.moveTo(blockInsertCursor.x, blockInsertCursor.y)
       } else {
-        client.cursor.moveTo(x+client.cursor.w, y+client.cursor.h)
+        if (this.mode === "VISUAL BLOCK") {
+          client.cursor.moveTo(x+client.cursor.w, y+client.cursor.h)
+        }
         client.cursor.reset()
       }
       client.history.record(client.orca.s)
@@ -739,7 +741,7 @@ function Vi (client) {
       }
 
       client.acels.set('Vi', 'Space', 'Space', () => writeKey('.'))
-      client.acels.unset('1', '2', '3', '4', '5', '6', '7', '8', '9', 'H', 'J', 'K', 'L', 'Y', 'X', 'R')
+      client.acels.unset('1', '2', '3', '4', '5', '6', '7', '8', '9', 'H', 'J', 'K', 'L', 'Y', 'X', 'R', 'W', 'E', 'B')
 
       client.commander.onKeyDown = (e) => {
         if (e.ctrlKey || e.metaKey || e.altKey || (e.shiftKey && e.key == 'Shift') || e.key == 'CapsLock') { return }
@@ -755,6 +757,10 @@ function Vi (client) {
     client.cursor.selectNoUpdate(x, y, 0, 0)
     client.acels.set('Vi', 'Visual Line',  'Shift+V', () => { this.switchTo("VISUAL LINE") })
     this.visualModeCommon()
+
+    client.acels.set('Vi', 'Go to word beginning', 'W', () => this.jumpWordBeginning())
+    client.acels.set('Vi', 'Go to word ending', 'E', () => this.jumpWordEnding())
+    client.acels.set('Vi', 'Go back word', 'B', () => this.jumpWordBack())
   }
 
   this.visualLineMode = () => {
@@ -786,9 +792,34 @@ function Vi (client) {
     )
   }
 
+  this.lineRightOfSelection = (cursor = client.cursor) => {
+    return client.orca.getBlock(
+      cursor.x+cursor.w,
+      cursor.y,
+      client.orca.w-cursor.x,
+      1,
+    )
+  }
+
+  this.lineLeftOfSelection = (cursor = client.cursor) => {
+    return client.orca.getBlock(
+      cursor.w,
+      cursor.y,
+      cursor.x+1,
+      1,
+    )
+  }
+
   this.jumpWordBeginning = () => {
-    while (true) {
-      const line = this.lineRightOfCursor().split('')
+    if (this.chordPrefix.endsWith('v')) this.switchTo("VISUAL BLOCK")
+    const lineRightOf = (this.mode != "VISUAL BLOCK") ? this.lineRightOfCursor : this.lineRightOfSelection
+    const move = (this.mode != "VISUAL BLOCK") ? client.cursor.move : client.cursor.scale
+    const moveTo = (this.mode != "VISUAL BLOCK") ? client.cursor.moveTo : () => {
+      if (this.mode != "VISUAL LINE") this.switchTo("VISUAL LINE")
+    }
+
+    while (true && this.mode !== "VISUAL LINE") {
+      const line = lineRightOf().split('')
       let charUnderCursor = line[0]
       let moves = 0
 
@@ -815,7 +846,7 @@ function Vi (client) {
         // don't recurse past Orca's height
         if (client.cursor.y+1 >= client.orca.h) break
 
-        client.cursor.moveTo(0, client.cursor.y+1)
+        moveTo(0, client.cursor.y+1)
 
         // don't recurse if we already found a new word, e.g. ..a| -> |b..
         if (client.cursor.read() != '.') break
@@ -824,14 +855,14 @@ function Vi (client) {
       }
 
       if (this.chordPrefix.endsWith('d')) {
-        const line = this.lineRightOfCursor().substring(moves)
+        const line = lineRightOf().substring(moves)
         client.orca.writeBlock(client.cursor.x, client.cursor.y, ".".repeat(client.orca.w))
         client.orca.writeBlock(client.cursor.x, client.cursor.y, line)
         client.history.record(client.orca.s)
         this.resetChord()
       } else {
         // Otherwise, simply just move the amount of spaces we calculated
-        client.cursor.move(moves, 0)
+        move(moves, 0)
       }
       break
     }
@@ -840,14 +871,18 @@ function Vi (client) {
   // After conditionally jumping to the next word's beginning, we know we're at a word character, so just find the next dot.
   // If no dot, then the word extends until the of the line, in which case, just move the line length.
   this.jumpWordEnding = () => {
-    let line = this.lineRightOfCursor()
+    if (this.chordPrefix.endsWith('v')) this.switchTo("VISUAL BLOCK")
+    const lineRightOf = (this.mode != "VISUAL BLOCK") ? this.lineRightOfCursor : this.lineRightOfSelection
+    const move = (this.mode != "VISUAL BLOCK") ? client.cursor.move : client.cursor.scale
+
+    let line = lineRightOf()
 
     const toDelete = this.chordPrefix.endsWith('d') // check this now in as jumpWordBeginning might do some for us
 
     // Find the next word if we're on a dot, or we're already at the end of our current word
     if (line[0] === '.' || line[1] === '.' || line[1] === '\n') {
       this.jumpWordBeginning()
-      line = this.lineRightOfCursor()
+      line = lineRightOf()
     }
 
     let moves = line.indexOf('.')
@@ -857,26 +892,33 @@ function Vi (client) {
     }
 
     if (toDelete) {
-      const line = this.lineRightOfCursor().substring(moves)
+      const line = lineRightOf().substring(moves)
       client.orca.writeBlock(client.cursor.x, client.cursor.y, ".".repeat(client.orca.w))
       client.orca.writeBlock(client.cursor.x, client.cursor.y, line)
       this.resetChord()
     } else {
-      client.cursor.move(moves-1, 0) // moves to the last character of the word
+      move(moves-1, 0) // moves to the last character of the word
     }
   }
 
   this.jumpWordBack = () => {
+    if (this.chordPrefix.endsWith('v')) this.switchTo("VISUAL BLOCK")
+    const lineLeftOf = (this.mode != "VISUAL BLOCK") ? this.lineLeftOfCursor : this.lineLeftOfSelection
+    const move = (this.mode != "VISUAL BLOCK") ? client.cursor.move : client.cursor.scale
+    const moveTo = (this.mode != "VISUAL BLOCK") ? client.cursor.moveTo : () => {
+      if (this.mode != "VISUAL LINE") this.switchTo("VISUAL LINE")
+    }
+
     this.resetChord()
 
-    while (true) {
-      let line = [...this.lineLeftOfCursor().split('').reverse().slice(1), '.']
+    while (true && this.mode !== "VISUAL LINE") {
+      let line = [...lineLeftOf().split('').reverse().slice(1), '.']
       let charUnderCursor = line[0]
       let moves = 0
 
       // If we're at the start of a word  against the border, i.e. |abc.. with cursor over 'a'
       if (line.length == 2) {
-        client.cursor.moveTo(client.orca.w, client.cursor.y-1)
+        moveTo(client.orca.w, client.cursor.y-1)
         continue
       }
 
@@ -887,19 +929,19 @@ function Vi (client) {
         moves = line.indexOf('.')
         // if we're at the start of a word already, we should go to the next one, so recurse
         if (moves == 1) {
-          client.cursor.move(-1, 0)
+          move(-1, 0)
           continue
         }
       }
 
       // If we're at the start of the word and there's nothing else on the line, i.e ...abc..| with cursor over 'a'
       if (moves === -1) {
-        if (client.cursor.y <= 0) { client.cursor.moveTo(0, 0); break }
-        client.cursor.moveTo(client.orca.w, client.cursor.y-1)
+        if (client.cursor.y <= 0) { moveTo(0, 0); break }
+        moveTo(client.orca.w, client.cursor.y-1)
         continue
       }
 
-      client.cursor.move(-moves+1, 0)
+      move(-moves+1, 0)
       break
     }
   }
