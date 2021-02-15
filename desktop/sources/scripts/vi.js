@@ -398,6 +398,8 @@ function Vi (client) {
       client.acels.set('Vi', '', 'Space', () => { client.cursor.write('.'); this.resetChord(); this.normalMode() })
     })
 
+    client.acels.set('Vi', 'Copy', 'Y', () => { client.cursor.copy() })
+
     client.commander.onKeyDown = (e) => {
       if (this.chordPrefix == 'r') {
         if (e.ctrlKey || e.metaKey || e.altKey || (e.shiftKey && e.key == 'Shift') || e.key == 'CapsLock') { return }
