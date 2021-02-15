@@ -145,10 +145,10 @@ function Commander (client) {
     client.update()
   }
 
-  this.trigger = (msg = this.query, origin = null, stopping = true) => {
+  this.trigger = (msg = this.query, origin = null, stopping = true, record = true) => {
     let cmd = ''
     let val = ''
-    this.recordHistory(msg)
+    if (record) this.recordHistory(msg)
 
     if (msg.startsWith('/')) {
       cmd = '/'
