@@ -26,15 +26,17 @@ function Commander (client) {
   }
 
   this.actives = {
+    // MIDI
+    midils: (p) => { client.modals = { midils: true } },
+    midirefresh: (p) => { client.io.midi.refresh() },
+    midiin: (p) => { client.io.midi.selectInput(p.int) },
+    midiout: (p) => { client.io.midi.selectOutput(p.int) },
+
     // Ports
     osc: (p) => { client.io.osc.select(p.int) },
     udp: (p) => {
       client.io.udp.selectOutput(p.x)
       if (p.y !== null) { client.io.udp.selectInput(p.y) }
-    },
-    midi: (p) => {
-      client.io.midi.selectOutput(p.x)
-      if (p.y !== null) { client.io.midi.selectInput(p.y) }
     },
     ip: (p) => { client.io.setIp(p.str) },
     cc: (p) => { client.io.cc.setOffset(p.int) },
@@ -132,7 +134,6 @@ function Commander (client) {
 
     this.isActive = false
     this.query = ''
-    client.update()
   }
 
   this.erase = function () {

@@ -47,8 +47,6 @@ function Client (body) {
     this.tile.h = 30
   }
 
-  this.guide = false
-
   this.el = document.createElement('canvas')
   this.el.style.width = '100%'
   this.el.style.height = '100%'
@@ -95,7 +93,7 @@ function Client (body) {
     this.acels.set('Cursor', 'Toggle Insert Mode', 'CmdOrCtrl+I', () => { this.cursor.ins = !this.cursor.ins })
     this.acels.set('Cursor', 'Toggle Block Comment', 'CmdOrCtrl+/', () => { this.cursor.comment() })
     this.acels.set('Cursor', 'Trigger Operator', 'CmdOrCtrl+P', () => { this.cursor.trigger() })
-    this.acels.set('Cursor', 'Reset', 'Escape', () => { this.toggleGuide(false); this.commander.stop(); this.clear(); this.clock.isPaused = false; this.cursor.reset() })
+    this.acels.set('Cursor', 'Reset', 'Escape', () => { this.commander.stop(); this.clear(); this.clock.isPaused = false; this.cursor.reset() })
 
     this.acels.set('Move', 'Move North', 'ArrowUp', () => { this.cursor.move(0, 1) })
     this.acels.set('Move', 'Move East', 'ArrowRight', () => { this.cursor.move(1, 0) })
@@ -123,7 +121,7 @@ function Client (body) {
     this.acels.set('Clock', 'Decr. Speed(10x)', 'CmdOrCtrl+<', () => { this.clock.modSpeed(-10, true) })
 
     this.acels.set('View', 'Toggle Retina', 'Tab', () => { this.toggleRetina() })
-    this.acels.set('View', 'Toggle Guide', 'CmdOrCtrl+G', () => { this.toggleGuide() })
+    this.acels.set('View', 'Toggle Guide', 'CmdOrCtrl+G', () => { this.modals = { guide: true } })
     this.acels.set('View', 'Incr. Col', ']', () => { this.modGrid(1, 0) })
     this.acels.set('View', 'Decr. Col', '[', () => { this.modGrid(-1, 0) })
     this.acels.set('View', 'Incr. Row', '}', () => { this.modGrid(0, 1) })
@@ -182,8 +180,8 @@ function Client (body) {
     this.clear()
     this.ports = this.findPorts()
     this.drawProgram()
-    this.drawInterface()
-    this.drawGuide()
+    this.drawStatusBar()
+    this.drawModals()
   }
 
   this.whenOpen = (file, text) => {
@@ -216,14 +214,6 @@ function Client (body) {
     this.scale = this.scale === 1 ? window.devicePixelRatio : 1
     console.log('Client', `Pixel resolution: ${this.scale}`)
     this.resize(true)
-  }
-
-  this.toggleGuide = (force = null) => {
-    const display = force !== null ? force : this.guide !== true
-    if (display === this.guide) { return }
-    console.log('Client', `Toggle Guide: ${display}`)
-    this.guide = display
-    this.update()
   }
 
   this.modGrid = (x = 0, y = 0) => {
@@ -328,7 +318,7 @@ function Client (body) {
 
 
     // Background for popups
-    if (type === 4000) { return { bg: this.theme.active.b_med } }
+    if (type === 4000) { return { bg: this.theme.active.b_low, fg: this.theme.active.f_low } }
 
     // Default
     return { fg: this.theme.active.f_low }
@@ -373,22 +363,76 @@ function Client (body) {
     return 20
   }
 
-  this.drawInterface = () => {
-    if (this.vi.commandCompletionMatches.length > 0) {
+  // To ensure there's only one modal drawn at any given time during the
+  // update loop, we should set modals like `this.modals = { midils: true }`.
+  this.modals = {}
+
+  this.drawModals = () => {
+    const draw = (values) => {
+      if (!(this.vi.mode === "INFO" || this.vi.mode === "COMMAND")) {
+        this.vi.switchTo("INFO")
+      }
+
       const i0 = this.statusBar == 'top' ? 1 : 0
       const h0 = this.statusBar == 'top' ? 0 : -1
       for (let i=i0; i<=this.orca.h+h0; i++) {
         this.write(".".repeat(this.orca.w), 0, i, this.orca.w, 4000)
       }
 
-      this.vi.commandCompletionMatches.forEach((m, i) => {
+      const max1 = Math.max.apply(Math, values.map((e, _) => (e[0] || '').length))
+      const max2 = Math.max.apply(Math, values.map((e, _) => (e[1] || '').length))
+      const max3 = Math.max.apply(Math, values.map((e, _) => (e[2] || '').length))
+
+      values.forEach((e, i) => {
+        const v1 = e[0]
+        const v2 = e[1]
+        const v3 = e[2]
         const frame = this.orca.h - 4
-        const x = (Math.floor(i / frame) * 16) + 2
+        const column = Math.floor(i / frame)
+        const x1 = 1 + (column * (1+max3+max2+max1))
+        const x2 = 1 + (column * (2+max3+max2))
+        const x3 = 1 + (column * (3+max3))
         const y = (i % frame) + 1
-        this.write(m, x, y+1+i0, client.orca.w, 10)
+
+        if (v1 == '---') {
+          const length = max1 + (max2 > 0 ? 1+max2 : 0) + (max3 ? 1+max3 : 0)
+          const separator = '-'.repeat(length)
+          this.write(separator, 1+x1, y+1+i0, length, 10)
+          return
+        }
+
+        if (v1) this.write(v1,           1+x1, y+1+i0, max1, 10)
+        if (v2) this.write(v2,      2+x2+max1, y+1+i0, max2, 10)
+        if (v3) this.write(v3, 3+x3+max1+max2, y+1+i0, max3, 10)
       })
     }
 
+    if (this.modals.midils) {
+      draw([
+        ["Inputs", "ID", "Selected"],
+        ["---"],
+        ...this.io.midi.inputs.map((x, i) => [x.name, `${i}`, this.io.midi.inputIndex == i ? '*' : '']),
+        [""],
+        ["Outputs", "ID", "Selected"],
+        ["---"],
+        ...this.io.midi.outputs.map((x, i) => [x.name, `${i}`, this.io.midi.outputIndex == i ? '*' : '']),
+      ])
+    }
+
+    if (this.modals.tabcompletion && this.vi.commandCompletionMatches.length > 0) {
+      draw(this.vi.commandCompletionMatches.map(x => [x]))
+    }
+
+    if (this.modals.guide) {
+      draw(
+        Object.keys(this.library)
+          .filter(val => isNaN(val))
+          .map(k => [k, (new this.library[k]()).info])
+      )
+    }
+  }
+
+  this.drawStatusBar = () => {
     const row = this.statusBar == 'top' ? 0 : this.statusBar == 'bottom' ? client.orca.h : client.orca.h-1
 
     if (this.commander.isActive === true) {
@@ -452,26 +496,6 @@ function Client (body) {
     // this.write(`${this.grid.w}/${this.grid.h}${this.tile.w !== 10 ? ' ' + (this.tile.w / 10).toFixed(1) : ''}`, this.grid.w * 2, row, this.grid.w)
     // this.write(`${display(Object.keys(this.orca.variables).join(''), this.orca.f, this.grid.w - 1)}`, this.grid.w * 4, row, this.grid.w - 1)
     // this.write(this.orca.f < 250 ? `> ${this.io.midi.toOutputString()}` : '', this.grid.w * 5, row, this.grid.w * 4)
-  }
-
-  this.drawGuide = () => {
-    if (this.guide !== true) { return }
-
-    for (let i=0; i<this.orca.h; i++) {
-      this.write(".".repeat(this.orca.w), 0, i, this.orca.w, 4000)
-    }
-
-    const operators = Object.keys(this.library).filter((val) => { return isNaN(val) })
-    for (const id in operators) {
-      const key = operators[id]
-      const oper = new this.library[key]()
-      const text = oper.info
-      const frame = this.orca.h - 4
-      const x = (Math.floor(parseInt(id) / frame) * 32) + 2
-      const y = (parseInt(id) % frame) + 2
-      this.write(key, x, y, 99, 10)
-      this.write(text, x + 2, y, 99, 10)
-    }
   }
 
   this.drawSprite = (x, y, g, type) => {
@@ -575,7 +599,7 @@ function Client (body) {
     e.stopPropagation()
     for (const file of e.dataTransfer.files) {
       if (file.name.indexOf('.orca') < 0) { continue }
-      this.toggleGuide(false)
+      this.modals = {}
       this.source.read(file, null, true)
       this.commander.start(':inject ' + file.name.replace(/.orca$/, ''))
     }

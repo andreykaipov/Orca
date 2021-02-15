@@ -92,7 +92,6 @@ function Vi (client) {
   }
 
   this.switchTo = (mode) => {
-    this.resetCommandCompletionMatches()
     this.resetChord()
     this.resetAcels()
     client.cursor.reset()
@@ -106,9 +105,20 @@ function Vi (client) {
       case "VISUAL LINE": this.visualLineMode(); break
       case "COMMAND": this.commandMode(); break
       case "FIND": this.findMode(); break
+      case "INFO": this.infoMode(); break
     }
 
     this.mode = mode
+  }
+
+  // For a when an informational modal is open
+  this.infoMode = () => {
+    client.acels.set('Vi', 'Normal mode', 'Escape', () => {
+      client.modals = {}
+      this.resetCommandCompletionMatches()
+      this.switchTo("NORMAL")
+    })
+    client.acels.set('Vi', 'Command', 'Shift+:', () => { this.switchTo("COMMAND") })
   }
 
   this.normalMode = () => {
@@ -440,7 +450,10 @@ function Vi (client) {
 
     client.acels.set('Vi', '', 'Space', () => client.commander.query += ' ')
     client.acels.set('Vi', '', 'Backspace', () => { if (![':', '/'].includes(client.commander.query)) client.commander.erase() })
-    client.acels.set('Vi', '', 'Escape', () => { this.switchTo("NORMAL") })
+    client.acels.set('Vi', '', 'Escape', () => {
+      client.modals = {}
+      this.switchTo("NORMAL")
+    })
 
     client.acels.set('Vi', 'Paste', 'CmdOrCtrl+V', () => {
       const write = (e) => { client.commander.query += e.clipboardData.getData('Text').trim() }
@@ -499,6 +512,7 @@ function Vi (client) {
       if (matches.length == 0) { return }
       if (matches.length == 1) { client.commander.query = before + matches[0]; return }
       if (matches.length >= 2 ) {
+        client.modals = { tabcompletion: true }
         this.commandCompletionMatches = matches
 
         // find largest common prefix; matches already sorted

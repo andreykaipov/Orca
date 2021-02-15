@@ -196,7 +196,7 @@ function Midi (client) {
     for (let i = outputs.next(); i && !i.done; i = outputs.next()) {
       this.outputs.push(i.value)
     }
-    this.selectOutput(0)
+    this.selectOutput(-1)
 
     const inputs = midiAccess.inputs.values()
     this.inputs = []
