@@ -62,7 +62,6 @@ function Cursor (client) {
     this.w = rect.w
     this.h = rect.h
     this.calculateBounds()
-    client.toggleGuide(false)
     client.update()
   }
 
