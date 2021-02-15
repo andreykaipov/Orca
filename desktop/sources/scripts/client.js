@@ -35,13 +35,28 @@ function Client (body) {
   this.scale = window.devicePixelRatio
   this.grid = { w: 8, h: 8 }
   this.tile = {
-    w: +localStorage.getItem('tilew') || 10,
-    h: +localStorage.getItem('tileh') || 15
+    w: +localStorage.getItem('tilew') || 30,
+    h: +localStorage.getItem('tileh') || 30,
   }
+
+  // we want our tiles to ideally be squares, if
+  // for whatever reason it's not from localStorage
+  // playing around with this values can be cool
+  if (this.tile.w !== this.tile.h) {
+    this.tile.w = 30
+    this.tile.h = 30
+  }
+
   this.guide = false
 
   this.el = document.createElement('canvas')
+  this.el.style.width = '100%'
+  this.el.style.height = '100%'
+
   this.context = this.el.getContext('2d')
+
+  // options are 'top', 'bottom', 'hide'
+  this.statusBar = localStorage.getItem('statusBar') || 'top'
 
   this.install = (host = this.body) => {
     host.appendChild(this.el)
@@ -145,8 +160,6 @@ function Client (body) {
     this.modZoom()
     this.update()
     this.el.className = 'ready'
-
-    this.toggleGuide()
   }
 
   this.reset = () => {
@@ -193,6 +206,14 @@ function Client (body) {
     this.update()
   }
 
+  // options are 'top', 'bottom', 'hide'
+  this.setStatusBar = option => {
+    if (!['top', 'bottom', 'hide'].includes(option)) option = 'top'
+    this.statusBar = option
+    localStorage.setItem('statusBar', this.statusBar)
+    this.resize()
+  }
+
   this.toggleRetina = () => {
     this.scale = this.scale === 1 ? window.devicePixelRatio : 1
     console.log('Client', `Pixel resolution: ${this.scale}`)
@@ -214,14 +235,25 @@ function Client (body) {
   }
 
   this.modZoom = (mod = 0, reset = false) => {
-    this.tile = {
-      w: reset ? 10 : this.tile.w * (mod + 1),
-      h: reset ? 15 : this.tile.h * (mod + 1),
-      ws: Math.floor(this.tile.w * this.scale),
-      hs: Math.floor(this.tile.h * this.scale)
+    let {w,h} = {
+      w: reset ? 30 : this.tile.w * (mod + 1),
+      h: reset ? 30 : this.tile.h * (mod + 1),
     }
-    localStorage.setItem('tilew', this.tile.w)
-    localStorage.setItem('tileh', this.tile.h)
+
+    // set min or max depending on previous value
+    // basically defines a min/max zoom value [5,100]
+    h = h >= this.tile.h ? Math.min(100, h) : Math.max(5, h)
+    w = w >= this.tile.w ? Math.min(100, w) : Math.max(5, w)
+
+    this.tile = {
+      w: w,
+      h: h,
+      ws: Math.floor(w * this.scale),
+      hs: Math.floor(h * this.scale)
+    }
+
+    localStorage.setItem('tilew', w)
+    localStorage.setItem('tileh', h)
     this.resize(true)
   }
 
@@ -280,13 +312,26 @@ function Client (body) {
     // Invisible
     if (type === 7) { return {} }
     // Output Bang
-    if (type === 8) { return { bg: this.theme.active.b_low, fg: this.theme.active.f_high } }
     // Output Reader
     if (type === 9) { return { bg: this.theme.active.b_inv, fg: this.theme.active.background } }
     // Reader+Background
     if (type === 10) { return { bg: this.theme.active.background, fg: this.theme.active.f_high } }
     // Clock(yellow fg)
     if (type === 11) { return { fg: this.theme.active.b_inv } }
+
+
+    // Status line background
+    // if (type === 2000) { return { bg: this.theme.active.f_low } }
+
+    // Paused cursor
+    if (type === 3000) { return { bg: this.theme.active.b_low, fg: this.theme.active.f_high } }
+    // Paused clock in status bar
+    if (type === 3001) { return { fg: this.theme.active.f_high } }
+
+
+    // Background for popups
+    if (type === 4000) { return { bg: this.theme.active.b_med } }
+
     // Default
     return { fg: this.theme.active.f_low }
   }
@@ -298,6 +343,8 @@ function Client (body) {
   }
 
   this.drawProgram = () => {
+    const yOffset = this.statusBar == 'top' ? 1 : 0
+
     const selection = this.cursor.read()
     for (let y = 0; y < this.orca.h; y++) {
       for (let x = 0; x < this.orca.w; x++) {
@@ -306,14 +353,18 @@ function Client (body) {
         // Make Glyph
         const g = this.orca.glyphAt(x, y)
         // Get glyph
-        const glyph = g !== '.' ? g : this.isCursor(x, y) ? (this.clock.isPaused ? '~' : '@') : this.isMarker(x, y) ? '+' : g
+        const glyph = g !== '.' ? g
+                      : this.isCursor(x, y) ? (this.clock.isPaused ? '~' : '@')
+                      : this.isMarker(x, y) ? '+'
+                      : g
         // Make Style
-        this.drawSprite(x, y, glyph, this.makeStyle(x, y, glyph, selection))
+        this.drawSprite(x, y+yOffset, glyph, this.makeStyle(x, y, glyph, selection))
       }
     }
   }
 
   this.makeStyle = (x, y, glyph, selection) => {
+    if (this.clock.isPaused && glyph == '~') { return 3000 }
     if (this.cursor.selected(x, y)) { return 4 }
     const isLocked = this.orca.lockAt(x, y)
     if (selection === glyph && isLocked === false && selection !== '.') { return 6 }
@@ -325,37 +376,93 @@ function Client (body) {
   }
 
   this.drawInterface = () => {
-    if (this.vi.commandCompletionMatches.length == 0) {
-      this.write(`${this.cursor.inspect()}`, this.grid.w * 0, this.orca.h, this.grid.w - 1)
-      this.write(`${this.cursor.x},${this.cursor.y}${this.cursor.ins ? '+' : ''}`, this.grid.w * 1, this.orca.h, this.grid.w, this.cursor.ins ? 1 : 2)
-      this.write(`${this.cursor.w}:${this.cursor.h}`, this.grid.w * 2, this.orca.h, this.grid.w)
-      this.write(`${this.orca.f}f${this.clock.isPaused ? '~' : ''}`, this.grid.w * 3, this.orca.h, this.grid.w)
-      this.write(`${this.io.inspect(this.grid.w)}`, this.grid.w * 4, this.orca.h, this.grid.w - 1)
-      this.write(this.orca.f < 250 ? `< ${this.io.midi.toInputString()}` : '', this.grid.w * 5, this.orca.h, this.grid.w * 4)
-    } else {
-      const matches = this.vi.commandCompletionMatches.join(' ')
-      const extra = matches.length > this.grid.w*4 ? '...' : ''
-      this.write(matches, this.grid.w * 0, this.orca.h, this.grid.w*4)
-      this.write(extra, this.grid.w * 4, this.orca.h, 3)
+    if (this.vi.commandCompletionMatches.length > 0) {
+      const i0 = this.statusBar == 'top' ? 1 : 0
+      const h0 = this.statusBar == 'top' ? 0 : -1
+      for (let i=i0; i<=this.orca.h+h0; i++) {
+        this.write(".".repeat(this.orca.w), 0, i, this.orca.w, 4000)
+      }
+
+      this.vi.commandCompletionMatches.forEach((m, i) => {
+        const frame = this.orca.h - 4
+        const x = (Math.floor(i / frame) * 16) + 2
+        const y = (i % frame) + 1
+        this.write(m, x, y+1+i0, client.orca.w, 10)
+      })
     }
+
+    const row = this.statusBar == 'top' ? 0 : this.statusBar == 'bottom' ? client.orca.h : client.orca.h-1
 
     if (this.commander.isActive === true) {
-      this.write(`${this.commander.query}${this.orca.f % 2 === 0 ? '_' : ''}`, this.grid.w * 0, this.orca.h + 1, this.grid.w * 4)
-    } else {
-      this.write(this.orca.f < 25 ? `ver${this.version}` : `${Object.keys(this.source.cache).length} mods`, this.grid.w * 0, this.orca.h + 1, this.grid.w)
-      this.write(`${this.orca.w}x${this.orca.h}`, this.grid.w * 1, this.orca.h + 1, this.grid.w)
-      this.write(`${this.grid.w}/${this.grid.h}${this.tile.w !== 10 ? ' ' + (this.tile.w / 10).toFixed(1) : ''}`, this.grid.w * 2, this.orca.h + 1, this.grid.w)
-      this.write(`${this.clock}`, this.grid.w * 3, this.orca.h + 1, this.grid.w, this.clock.isPuppet ? 3 : this.io.midi.isClock ? 11 : this.clock.isPaused ? 20 : 2)
-      this.write(`${display(Object.keys(this.orca.variables).join(''), this.orca.f, this.grid.w - 1)}`, this.grid.w * 4, this.orca.h + 1, this.grid.w - 1)
-      this.write(this.orca.f < 250 ? `> ${this.io.midi.toOutputString()}` : '', this.grid.w * 5, this.orca.h + 1, this.grid.w * 4)
-
-      this.write(this.vi.inspectMode(), this.grid.w * 0, this.orca.h + 2, this.grid.w * 3)
-      this.write(this.vi.inspectChord(), this.grid.w * 3, this.orca.h + 2, this.grid.w * 2)
+      const style = this.statusBar == 'hide' ? 4 : 2
+      const indicator = this.statusBar == 'hide' ? ' ' : '_'
+      this.write(`${this.commander.query}${this.orca.f % 4 === 0 ? indicator : ''}`, this.grid.w*0, row, this.grid.w * 4, style)
+      return
     }
+
+    if (this.statusBar == 'hide') return
+
+    let left = 0
+    let right = client.orca.w
+
+    // Left hand side
+
+    const modeInfo = `${this.vi.inspectMode()}`
+    this.write(modeInfo, left, row, modeInfo.length)
+    left += modeInfo.length
+    if (left >= right) return
+
+    const bpmInfo = ' ' + `${this.clock}${this.clock.isPaused ? '~' : ''}`
+    this.write(bpmInfo, left, row, 4, this.clock.isPuppet ? 3 : this.io.midi.isClock ? 11 : this.clock.isPaused ? 3001 : 2)
+    left += 4
+    if (left >= right) return
+
+    const frameInfo = `${this.orca.f}` + ' '
+    this.write(frameInfo, left, row, frameInfo, this.clock.isPuppet ? 3 : this.io.midi.isClock ? 11 : this.clock.isPaused ? 3001 : 2)
+    left += frameInfo.length
+    if (left >= right) return
+
+    const ioInfo = `${this.io.inspect(this.grid.w)}`
+    this.write(ioInfo, left, row, ioInfo.length)
+    left += ioInfo.length
+    if (left >= right) return
+
+    // Right hand side
+
+    const gridInfo = `${this.orca.w}x${this.orca.h}`
+    right -= gridInfo.length
+    if (right <= left) return
+    this.write(gridInfo, right, row, gridInfo.length)
+
+    const cursorLocationInfo = `${this.cursor.x},${this.cursor.y}` + ' '
+    right -= cursorLocationInfo.length
+    if (right <= left) return
+    this.write(cursorLocationInfo, right, row, cursorLocationInfo.length)
+
+    const cursorSelectionInfo = `${this.cursor.w}:${this.cursor.h}` + ' '
+    right -= cursorSelectionInfo.length
+    if (right <= left) return
+    this.write(cursorSelectionInfo, right, row, cursorSelectionInfo.length)
+
+    const chordInfo = this.vi.inspectChord() + ' '
+    right -= chordInfo.length
+    if (right <= left) return
+    this.write(chordInfo, right, row, chordInfo.length)
+
+    // this.write(this.orca.f < 250 ? `< ${this.io.midi.toInputString()}` : '', this.grid.w * 5, this.orca.h, this.grid.w * 4)
+    // this.write(`${this.cursor.inspect()}`, this.grid.w*3, row, this.grid.w)
+    // this.write(`${this.grid.w}/${this.grid.h}${this.tile.w !== 10 ? ' ' + (this.tile.w / 10).toFixed(1) : ''}`, this.grid.w * 2, row, this.grid.w)
+    // this.write(`${display(Object.keys(this.orca.variables).join(''), this.orca.f, this.grid.w - 1)}`, this.grid.w * 4, row, this.grid.w - 1)
+    // this.write(this.orca.f < 250 ? `> ${this.io.midi.toOutputString()}` : '', this.grid.w * 5, row, this.grid.w * 4)
   }
 
   this.drawGuide = () => {
     if (this.guide !== true) { return }
+
+    for (let i=0; i<this.orca.h; i++) {
+      this.write(".".repeat(this.orca.w), 0, i, this.orca.w, 4000)
+    }
+
     const operators = Object.keys(this.library).filter((val) => { return isNaN(val) })
     for (const id in operators) {
       const key = operators[id]
@@ -364,7 +471,7 @@ function Client (body) {
       const frame = this.orca.h - 4
       const x = (Math.floor(parseInt(id) / frame) * 32) + 2
       const y = (parseInt(id) % frame) + 2
-      this.write(key, x, y, 99, 3)
+      this.write(key, x, y, 99, 10)
       this.write(text, x + 2, y, 99, 10)
     }
   }
@@ -390,37 +497,39 @@ function Client (body) {
   // Resize tools
 
   this.resize = () => {
-    const pad = 30
-    const size = { w: window.innerWidth - (pad * 2), h: window.innerHeight - ((pad * 2) + this.tile.h * 2) }
-    const tiles = { w: Math.ceil(size.w / this.tile.w), h: Math.ceil(size.h / this.tile.h) }
-    const bounds = this.orca.bounds()
+    const size = { w: window.innerWidth, h: window.innerHeight }
 
-    // Clamp at limits of orca file
+    // calc number of tiles that can fit within our window given a tile's dimensions
+    // add an extra tile in height when status bar is hidden
+    const tiles = { w: Math.floor(size.w / this.tile.w), h: Math.floor(size.h / this.tile.h)+(this.statusBar == 'hide' ? 1 : 0) }
+
+    // clamp at limits of orca file ??
+    const bounds = this.orca.bounds()
     if (tiles.w < bounds.w + 1) { tiles.w = bounds.w + 1 }
     if (tiles.h < bounds.h + 1) { tiles.h = bounds.h + 1 }
 
+    // not too sure how this function works
     this.crop(tiles.w, tiles.h)
 
     // Keep cursor in bounds
     if (this.cursor.x >= tiles.w) { this.cursor.moveTo(tiles.w - 1, this.cursor.y) }
     if (this.cursor.y >= tiles.h) { this.cursor.moveTo(this.cursor.x, tiles.h - 1) }
 
+    // canvas dimensions
+    // ?? no clue why the offset addition works lol (why add instead of subtract??)
+    const hOffset = this.statusBar == 'hide' ? 0 : 1
     const w = this.tile.ws * this.orca.w
-    const h = (this.tile.hs + (this.tile.hs / 5)) * this.orca.h
-
-    if (w === this.el.width && h === this.el.height) { return }
-
-    console.log(`Resized to: ${this.orca.w}x${this.orca.h}`)
-
+    const h = this.tile.hs * (this.orca.h+hOffset)
+    if (w === this.el.width && h === this.el.height) return
     this.el.width = w
     this.el.height = h
-    this.el.style.width = `${Math.ceil(this.tile.w * this.orca.w)}px`
-    this.el.style.height = `${Math.ceil((this.tile.h + (this.tile.h / 5)) * this.orca.h)}px`
 
     this.context.textBaseline = 'bottom'
     this.context.textAlign = 'center'
-    this.context.font = `${this.tile.hs * 0.75}px input_mono_medium`
+    this.context.font = `${this.tile.hs * 0.8}px input_mono_medium`
     this.update()
+
+    console.log(`Resized Orca grid: ${this.orca.w}x${this.orca.h}`)
   }
 
   this.crop = (w, h) => {

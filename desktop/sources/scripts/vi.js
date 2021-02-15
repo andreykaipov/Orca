@@ -14,7 +14,13 @@ function Vi (client) {
   this.originalCommanderKeyDownHandler = client.commander.onKeyDown
   this.originalCommanderKeyUpHandler = client.commander.onKeyUp
 
-  this.inspectMode = () => this.mode ? `-- ${this.mode} --` : ""
+  this.inspectMode = () => {
+    if (!this.mode) return ""
+    let short = this.mode == "VISUAL BLOCK" ? "VBLOCK" :
+                this.mode == "VISUAL LINE"  ? "VLINE" :
+                this.mode.substring(0,6)
+    return short
+  }
   this.inspectChord = () => this.mode /*&& this.chordPrefix != 1*/ ? `${this.chordPrefix}` : ""
 
   this.toggle = () => {
@@ -90,6 +96,7 @@ function Vi (client) {
     this.resetChord()
     this.resetAcels()
     client.cursor.reset()
+    client.commander.stop()
 
     switch (mode) {
       case "NORMAL": this.normalMode(); break
@@ -105,7 +112,10 @@ function Vi (client) {
   }
 
   this.normalMode = () => {
-    client.acels.set('Vi', 'Normal mode', 'Escape', () => { client.cursor.reset(); this.resetChord() })
+    client.acels.set('Vi', 'Normal mode', 'Escape', () => {
+      client.cursor.reset()
+      this.resetChord()
+    })
 
     // into insert mode
     client.acels.set('Vi', 'Insert',               'I',       () => { this.switchTo("INSERT") })
@@ -428,7 +438,7 @@ function Vi (client) {
 
     client.acels.set('Vi', '', 'Space', () => client.commander.query += ' ')
     client.acels.set('Vi', '', 'Backspace', () => { if (![':', '/'].includes(client.commander.query)) client.commander.erase() })
-    client.acels.set('Vi', '', 'Escape', () => { client.commander.stop(); this.switchTo("NORMAL") })
+    client.acels.set('Vi', '', 'Escape', () => { this.switchTo("NORMAL") })
 
     client.acels.set('Vi', 'Paste', 'CmdOrCtrl+V', () => {
       const write = (e) => { client.commander.query += e.clipboardData.getData('Text').trim() }

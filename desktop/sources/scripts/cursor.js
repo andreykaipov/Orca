@@ -26,7 +26,12 @@ function Cursor (client) {
 
   this.selectNoUpdate = (x = this.x, y = this.y, w = this.w, h = this.h) => {
     if (isNaN(x) || isNaN(y) || isNaN(w) || isNaN(h)) { return }
-    const rect = { x: clamp(parseInt(x), 0, client.orca.w - 1), y: clamp(parseInt(y), 0, client.orca.h - 1), w: clamp(parseInt(w), -this.x, client.orca.w - 1), h: clamp(parseInt(h), -this.y, client.orca.h - 1) }
+    const rect = {
+      x: clamp(parseInt(x), 0, client.orca.w - 1),
+      y: clamp(parseInt(y), 0, client.orca.h - 1),
+      w: clamp(parseInt(w), -this.x, client.orca.w - 1),
+      h: clamp(parseInt(h), -this.y, client.orca.h - 1),
+    }
 
     if (this.x === rect.x && this.y === rect.y && this.w === rect.w && this.h === rect.h) {
       return // Don't update when unchanged
@@ -41,7 +46,12 @@ function Cursor (client) {
 
   this.select = (x = this.x, y = this.y, w = this.w, h = this.h) => {
     if (isNaN(x) || isNaN(y) || isNaN(w) || isNaN(h)) { return }
-    const rect = { x: clamp(parseInt(x), 0, client.orca.w - 1), y: clamp(parseInt(y), 0, client.orca.h - 1), w: clamp(parseInt(w), -this.x, client.orca.w - 1), h: clamp(parseInt(h), -this.y, client.orca.h - 1) }
+    const rect = {
+      x: clamp(parseInt(x), 0, client.orca.w - 1),
+      y: clamp(parseInt(y), 0, client.orca.h - 1),
+      w: clamp(parseInt(w), -this.x, client.orca.w - 1),
+      h: clamp(parseInt(h), -this.y, client.orca.h - 1),
+    }
 
     if (this.x === rect.x && this.y === rect.y && this.w === rect.w && this.h === rect.h) {
       return // Don't update when unchanged
@@ -220,7 +230,18 @@ function Cursor (client) {
   }
 
   this.mousePick = (x, y, w = client.tile.w, h = client.tile.h) => {
-    return { x: parseInt((x - 30) / w), y: parseInt((y - 30) / h) }
+    // since we use 100% for our canvas width and height, client.tile is
+    // always a tad innacurate from the small stretches, so we need to recalc
+    // the actual tile dimensions depending on the position of status bar.
+
+    const hOffset = client.statusBar === 'hide' ? 0 : 1 // hOffset from client's resize method
+    const yOffset = client.statusBar === 'top' ? 1 : this.statusBar == 'bottom' ? 1 : 0
+
+    const tile = { w: window.innerWidth/client.orca.w, h: window.innerHeight/(client.orca.h+hOffset) }
+    return {
+      x: Math.floor(x / tile.w),
+      y: Math.floor(y / tile.h)-yOffset,
+   }
   }
 
   this.onContextMenu = (e) => {
