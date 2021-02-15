@@ -13,7 +13,7 @@ function Theme (client) {
     background: '#eeeeee',
     f_high: '#0a0a0a',
     f_med: '#4a4a4a',
-    f_low: '#6a6a6a',
+    f_low: '#ffffff',
     f_inv: '#111111',
     b_high: '#a1a1a1',
     b_med: '#c1c1c1',
@@ -28,6 +28,7 @@ function Theme (client) {
     window.addEventListener('dragover', this.drag)
     window.addEventListener('drop', this.drop)
     host.appendChild(this.el)
+    this.active = this.default
   }
 
   this.start = () => {
@@ -84,6 +85,7 @@ function Theme (client) {
     const hex = (`${val}`.substr(0, 1) !== '#' ? '#' : '') + `${val}`
     if (!isColor(hex)) { console.warn('Theme', `${hex} is not a valid color.`); return }
     this.active[key] = hex
+    localStorage.setItem('theme', JSON.stringify(this.active))
   }
 
   this.read = (key) => {

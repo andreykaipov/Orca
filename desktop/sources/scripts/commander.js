@@ -76,9 +76,19 @@ function Commander (client) {
     write: (p) => {
       client.orca.writeBlock(p._x || client.cursor.x, p._y || client.cursor.y, p._str)
     },
+    status: (p) => {
+      let option = p.str
+      if (option == 'bot') option = 'bottom'
+      if (!['top', 'bottom', 'hide'].includes(option)) return
+      client.setStatusBar(option)
+    },
     // Aliases
     '/': p => this.actives['find'](p),
-    colo: p => this.actives['color'](p),
+    colo: p => {
+      if (p.parts[0]) { client.theme.set('b_low', p.parts[0]) }
+      if (p.parts[1]) { client.theme.set('b_med', p.parts[1]) }
+      if (p.parts[2]) { client.theme.set('b_high', p.parts[2]) }
+    },
     include: (p, origin) => this.actives['inject'](p, origin),
   }
 

@@ -62,8 +62,6 @@ function Client (body) {
     host.appendChild(this.el)
     this.theme.install(host)
 
-    this.theme.default = { background: '#000000', f_high: '#ffffff', f_med: '#777777', f_low: '#444444', f_inv: '#000000', b_high: '#eeeeee', b_med: '#72dec2', b_low: '#444444', b_inv: '#ffb545' }
-
     this.acels.set('File', 'New', 'CmdOrCtrl+N', () => { this.reset() })
     this.acels.set('File', 'Open', 'CmdOrCtrl+O', () => { this.source.open('orca', this.whenOpen, true) })
     this.acels.set('File', 'Import Modules', 'CmdOrCtrl+L', () => { this.source.load('orca') })
