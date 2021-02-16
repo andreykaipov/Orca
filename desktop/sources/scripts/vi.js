@@ -114,7 +114,7 @@ function Vi (client) {
   // For a when an informational modal is open
   this.infoMode = () => {
     client.acels.set('Vi', 'Normal mode', 'Escape', () => {
-      client.modals = {}
+      client.modal = null
       this.resetCommandCompletionMatches()
       this.switchTo("NORMAL")
     })
@@ -451,7 +451,7 @@ function Vi (client) {
     client.acels.set('Vi', '', 'Space', () => client.commander.query += ' ')
     client.acels.set('Vi', '', 'Backspace', () => { if (![':', '/'].includes(client.commander.query)) client.commander.erase() })
     client.acels.set('Vi', '', 'Escape', () => {
-      client.modals = {}
+      client.modal = null
       this.switchTo("NORMAL")
     })
 
@@ -466,9 +466,11 @@ function Vi (client) {
 
     client.acels.set('Vi', 'Delete word', 'CmdOrCtrl+W', () => {
       const indicator = client.commander.query[0]
-      const text = client.commander.query.slice(1)
-      const lastWordRemoved = text.split(' ').filter(x => x).slice(0, -1).join(' ')
-      client.commander.query = indicator + (lastWordRemoved ? lastWordRemoved + ' ' : '')
+      const text = client.commander.query.slice(1).trim()
+      // remove last word
+      const end = Math.max(text.lastIndexOf(' '), text.lastIndexOf('.'))+1
+      const textNoLastWord = text.substring(0, end)
+      client.commander.query = indicator + textNoLastWord
     })
   }
 
@@ -501,9 +503,15 @@ function Vi (client) {
 
       let [cmd, arg] = text.split(' ')
 
-      if (['inject'].includes(cmd)) {
+      if (cmd === 'inject') {
         matches = Object.keys(client.source.cache).sort().filter(x => x.match(`^${arg}`))
         before = `:${cmd} `
+      } else if (cmd === 'font') {
+        matches = Object.keys(client.fonts).sort().filter(x => x.match(`^${arg}`))
+        before = `:${cmd} `
+      } else if (cmd === 'midiin' || cmd === 'midiout') {
+        client.modal = 'midils'
+        return
       } else {
         matches = Object.keys(client.commander.actives).sort().filter(x => x.match(`^${cmd}`))
       }
@@ -512,7 +520,7 @@ function Vi (client) {
       if (matches.length == 0) { return }
       if (matches.length == 1) { client.commander.query = before + matches[0]; return }
       if (matches.length >= 2 ) {
-        client.modals = { tabcompletion: true }
+        client.modal = 'tabcompletion'
         this.commandCompletionMatches = matches
 
         // find largest common prefix; matches already sorted

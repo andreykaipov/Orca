@@ -27,10 +27,33 @@ function Commander (client) {
 
   this.actives = {
     // MIDI
-    midils: (p) => { client.modals = { midils: true } },
-    midirefresh: (p) => { client.io.midi.refresh() },
-    midiin: (p) => { client.io.midi.selectInput(p.int) },
-    midiout: (p) => { client.io.midi.selectOutput(p.int) },
+    midils: _ => { client.modal = 'midils' },
+    midirefresh: _ => { client.io.midi.refresh() },
+    midiin: p => { client.io.midi.selectInput(p.int) },
+    midiout: p => { client.io.midi.selectOutput(p.int) },
+
+    // Fonts
+    font: p => {
+      if (!Object.keys(client.fonts).includes(p.str)) return
+      client.font = p.str
+      localStorage.setItem('fonts.selected', client.font)
+      client.updateFont()
+    },
+    fontscale: p => {
+      const factors = { up: 0.05, down: -0.05 }
+      if (!Object.keys(factors).includes(p.str)) return
+      client.fonts[client.font].scale += factors[p.str]
+      localStorage.setItem(`fonts.${client.font}`, JSON.stringify(client.fonts[client.font]))
+      client.updateFont()
+    },
+    fontoffset: p => {
+      const factors = { left: -0.05, right: 0.05, up: -0.05, down: 0.05 }
+      if (!Object.keys(factors).includes(p.str)) return
+      const xory = p.str == 'left' || p.str == 'right' ? 'x' : 'y'
+      client.fonts[client.font][`offset_${xory}`] += factors[p.str]
+      localStorage.setItem(`fonts.${client.font}`, JSON.stringify(client.fonts[client.font]))
+      client.updateFont()
+    },
 
     // Ports
     osc: (p) => { client.io.osc.select(p.int) },

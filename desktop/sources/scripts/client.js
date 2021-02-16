@@ -121,7 +121,7 @@ function Client (body) {
     this.acels.set('Clock', 'Decr. Speed(10x)', 'CmdOrCtrl+<', () => { this.clock.modSpeed(-10, true) })
 
     this.acels.set('View', 'Toggle Retina', 'Tab', () => { this.toggleRetina() })
-    this.acels.set('View', 'Toggle Guide', 'CmdOrCtrl+G', () => { this.modals = { guide: true } })
+    this.acels.set('View', 'Toggle Guide', 'CmdOrCtrl+G', () => { this.modal = 'guide' })
     this.acels.set('View', 'Incr. Col', ']', () => { this.modGrid(1, 0) })
     this.acels.set('View', 'Decr. Col', '[', () => { this.modGrid(-1, 0) })
     this.acels.set('View', 'Incr. Row', '}', () => { this.modGrid(0, 1) })
@@ -181,7 +181,7 @@ function Client (body) {
     this.ports = this.findPorts()
     this.drawProgram()
     this.drawStatusBar()
-    this.drawModals()
+    this.drawModal()
   }
 
   this.whenOpen = (file, text) => {
@@ -237,7 +237,7 @@ function Client (body) {
       w: w,
       h: h,
       ws: Math.floor(w * this.scale),
-      hs: Math.floor(h * this.scale)
+      hs: Math.floor(h * this.scale),
     }
 
     localStorage.setItem('tilew', w)
@@ -363,11 +363,9 @@ function Client (body) {
     return 20
   }
 
-  // To ensure there's only one modal drawn at any given time during the
-  // update loop, we should set modals like `this.modals = { midils: true }`.
-  this.modals = {}
+  this.modal = null
 
-  this.drawModals = () => {
+  this.drawModal = () => {
     const draw = (values) => {
       if (!(this.vi.mode === "INFO" || this.vi.mode === "COMMAND")) {
         this.vi.switchTo("INFO")
@@ -407,7 +405,7 @@ function Client (body) {
       })
     }
 
-    if (this.modals.midils) {
+    if (this.modal === 'midils') {
       draw([
         ["Inputs", "ID", "Selected"],
         ["---"],
@@ -417,13 +415,9 @@ function Client (body) {
         ["---"],
         ...this.io.midi.outputs.map((x, i) => [x.name, `${i}`, this.io.midi.outputIndex == i ? '*' : '']),
       ])
-    }
-
-    if (this.modals.tabcompletion && this.vi.commandCompletionMatches.length > 0) {
+    } else if (this.modal === 'tabcompletion' && this.vi.commandCompletionMatches.length > 0) {
       draw(this.vi.commandCompletionMatches.map(x => [x]))
-    }
-
-    if (this.modals.guide) {
+    } else if (this.modal === 'guide') {
       draw(
         Object.keys(this.library)
           .filter(val => isNaN(val))
@@ -455,12 +449,12 @@ function Client (body) {
     if (left >= right) return
 
     const bpmInfo = ' ' + `${this.clock}${this.clock.isPaused ? '~' : ''}`
-    this.write(bpmInfo, left, row, 4, this.clock.isPuppet ? 3 : this.io.midi.isClock ? 11 : this.clock.isPaused ? 3001 : 2)
-    left += 4
+    this.write(bpmInfo, left, row, `${this.clock.speed.value}`.length+2, this.clock.isPuppet ? 3 : this.io.midi.isClock ? 11 : this.clock.isPaused ? 3001 : 2)
+    left += `${this.clock.speed.value}`.length+2
     if (left >= right) return
 
     const frameInfo = `${this.orca.f}` + ' '
-    this.write(frameInfo, left, row, frameInfo, this.clock.isPuppet ? 3 : this.io.midi.isClock ? 11 : this.clock.isPaused ? 3001 : 2)
+    this.write(frameInfo, left, row, frameInfo.length, this.clock.isPuppet ? 3 : this.io.midi.isClock ? 11 : this.clock.isPaused ? 3001 : 2)
     left += frameInfo.length
     if (left >= right) return
 
@@ -498,7 +492,24 @@ function Client (body) {
     // this.write(this.orca.f < 250 ? `> ${this.io.midi.toOutputString()}` : '', this.grid.w * 5, row, this.grid.w * 4)
   }
 
-  this.drawSprite = (x, y, g, type) => {
+  this.font = localStorage.getItem('fonts.selected') ||'default'
+
+  this.fonts = {
+    default: JSON.parse(localStorage.getItem('fonts.default')) || {
+      name: 'input_mono_medium',
+      scale: 1.1,
+      offset_x: 0,
+      offset_y: 0,
+    },
+    pixel: JSON.parse(localStorage.getItem('fonts.pixel')) || {
+      name: 'uni_05_53regular',
+      scale: 1.1,
+      offset_x: 0,
+      offset_y: 0,
+    },
+  }
+
+  this.drawSprite = (x, y, glyph, type) => {
     const theme = this.makeTheme(type)
     if (theme.bg) {
       this.context.fillStyle = theme.bg
@@ -506,7 +517,11 @@ function Client (body) {
     }
     if (theme.fg) {
       this.context.fillStyle = theme.fg
-      this.context.fillText(g, (x + 0.5) * this.tile.ws, (y + 1) * this.tile.hs)
+      this.context.fillText(
+        glyph,
+        (x + 0.5 + this.fonts[this.font].offset_x) * this.tile.ws,
+        (y + 0 + this.fonts[this.font].offset_y) * this.tile.hs,
+      )
     }
   }
 
@@ -543,15 +558,19 @@ function Client (body) {
     const w = this.tile.ws * this.orca.w
     const h = this.tile.hs * (this.orca.h+hOffset)
     if (w === this.el.width && h === this.el.height) return
+
     this.el.width = w
     this.el.height = h
-
-    this.context.textBaseline = 'bottom'
-    this.context.textAlign = 'center'
-    this.context.font = `${this.tile.hs * 0.8}px input_mono_medium`
+    this.updateFont()
     this.update()
 
     console.log(`Resized Orca grid: ${this.orca.w}x${this.orca.h}`)
+  }
+
+  this.updateFont = () => {
+    this.context.textBaseline = 'top'
+    this.context.textAlign = 'center'
+    this.context.font = `${this.tile.hs * this.fonts[this.font].scale}px ${this.fonts[this.font].name}`
   }
 
   this.crop = (w, h) => {
@@ -599,7 +618,7 @@ function Client (body) {
     e.stopPropagation()
     for (const file of e.dataTransfer.files) {
       if (file.name.indexOf('.orca') < 0) { continue }
-      this.modals = {}
+      this.modal = null
       this.source.read(file, null, true)
       this.commander.start(':inject ' + file.name.replace(/.orca$/, ''))
     }
