@@ -117,11 +117,6 @@ function Commander (client) {
     include: (p, origin) => this.actives['inject'](p, origin),
   }
 
-  // Make shorthands
-  for (const id in this.actives) {
-    this.actives[id.substr(0, 2)] = this.actives[id]
-  }
-
   function Param (val) {
     this.str = `${val}`
     this.length = this.str.length
